@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Search, Edit, Trash2, Eye } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -7,6 +7,7 @@ import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
+import { CatalogoAPI } from '../services/endpoints';
 
 interface Receita {
   insumoId: string;
@@ -18,10 +19,11 @@ interface Receita {
 interface ItemCatalogo {
   id: string;
   nome: string;
-  descricao: string;
-  preco: number;
-  tempoPreparo: number;
-  categoria: string;
+  descricao?: string;
+  preco: number; // mapeado de precoVenda
+  tempoPreparo?: number;
+  categoria?: string;
+  custoProducao?: number;
   receita: Receita[];
 }
 
@@ -31,91 +33,96 @@ export function Catalogo() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemCatalogo | null>(null);
 
-  const [catalogo, setCatalogo] = useState<ItemCatalogo[]>([
-    {
-      id: '1',
-      nome: 'Bolo de Chocolate',
-      descricao: 'Delicioso bolo de chocolate com cobertura',
-      preco: 120.00,
-      tempoPreparo: 90,
-      categoria: 'Bolos',
-      receita: [
-        { insumoId: '1', insumoNome: 'Farinha de Trigo', quantidade: 0.5, unidade: 'kg' },
-        { insumoId: '2', insumoNome: 'Açúcar Refinado', quantidade: 0.3, unidade: 'kg' },
-        { insumoId: '5', insumoNome: 'Chocolate em Pó', quantidade: 0.2, unidade: 'kg' },
-        { insumoId: '4', insumoNome: 'Ovos', quantidade: 4, unidade: 'und' },
-      ],
-    },
-    {
-      id: '2',
-      nome: 'Torta de Morango',
-      descricao: 'Torta cremosa com morangos frescos',
-      preco: 85.00,
-      tempoPreparo: 120,
-      categoria: 'Tortas',
-      receita: [
-        { insumoId: '1', insumoNome: 'Farinha de Trigo', quantidade: 0.3, unidade: 'kg' },
-        { insumoId: '3', insumoNome: 'Manteiga', quantidade: 0.2, unidade: 'kg' },
-        { insumoId: '6', insumoNome: 'Leite Condensado', quantidade: 2, unidade: 'und' },
-      ],
-    },
-    {
-      id: '3',
-      nome: 'Cupcakes Variados',
-      descricao: 'Kit com 12 cupcakes de sabores variados',
-      preco: 45.00,
-      tempoPreparo: 60,
-      categoria: 'Cupcakes',
-      receita: [
-        { insumoId: '1', insumoNome: 'Farinha de Trigo', quantidade: 0.25, unidade: 'kg' },
-        { insumoId: '2', insumoNome: 'Açúcar Refinado', quantidade: 0.2, unidade: 'kg' },
-        { insumoId: '4', insumoNome: 'Ovos', quantidade: 3, unidade: 'und' },
-      ],
-    },
-  ]);
+  const [catalogo, setCatalogo] = useState<ItemCatalogo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     nome: '',
     descricao: '',
-    preco: '',
+    preco: '', // precoVenda
     tempoPreparo: '',
     categoria: '',
   });
+
+  useEffect(() => {
+    const fetchCatalogo = async () => {
+      try {
+        setLoading(true);
+        const data = await CatalogoAPI.list();
+        const mapped: ItemCatalogo[] = data.map((d: any) => ({
+          id: d._id,
+          nome: d.nome,
+          descricao: d.descricao,
+          preco: d.precoVenda ?? 0,
+          tempoPreparo: d.tempoPreparo,
+          categoria: d.categoria,
+          custoProducao: d.custoProducao,
+          receita: Array.isArray(d.receita) ? d.receita : [],
+        }));
+        setCatalogo(mapped);
+      } catch (e) {
+        console.error('Falha ao carregar catálogo', e);
+        setError('Falha ao carregar catálogo');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCatalogo();
+  }, []);
 
   const filteredCatalogo = catalogo.filter((item) =>
     item.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.categoria.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleCreateItem = () => {
-    const newItem: ItemCatalogo = {
-      id: Date.now().toString(),
-      nome: formData.nome,
-      descricao: formData.descricao,
-      preco: parseFloat(formData.preco),
-      tempoPreparo: parseInt(formData.tempoPreparo),
-      categoria: formData.categoria,
-      receita: [],
-    };
-    setCatalogo([...catalogo, newItem]);
-    setDialogOpen(false);
-    setFormData({ nome: '', descricao: '', preco: '', tempoPreparo: '', categoria: '' });
+  const handleCreateItem = async () => {
+    try {
+      const payload = {
+        nome: formData.nome,
+        categoria: formData.categoria,
+        precoVenda: parseFloat(formData.preco || '0'),
+        custoProducao: 0,
+        descricao: formData.descricao,
+        tempoPreparo: formData.tempoPreparo ? parseInt(formData.tempoPreparo) : undefined,
+      };
+      const created = await CatalogoAPI.create(payload);
+      const newItem: ItemCatalogo = {
+        id: (created as any)._id,
+        nome: created.nome,
+        descricao: created.descricao,
+        preco: created.precoVenda ?? 0,
+        tempoPreparo: (created as any).tempoPreparo,
+        categoria: created.categoria,
+        custoProducao: created.custoProducao,
+        receita: Array.isArray((created as any).receita) ? (created as any).receita : [],
+      };
+      setCatalogo((prev) => [newItem, ...prev]);
+      setDialogOpen(false);
+      setFormData({ nome: '', descricao: '', preco: '', tempoPreparo: '', categoria: '' });
+    } catch (e) {
+      console.error('Falha ao criar item do catálogo', e);
+      setError('Falha ao criar item do catálogo');
+    }
   };
 
-  const handleDeleteItem = (id: string) => {
-    setCatalogo(catalogo.filter(item => item.id !== id));
+  const handleDeleteItem = async (id: string) => {
+    try {
+      await CatalogoAPI.remove(id);
+      setCatalogo((prev) => prev.filter((item) => item.id !== id));
+    } catch (e) {
+      console.error('Falha ao remover item do catálogo', e);
+      setError('Falha ao remover item do catálogo');
+    }
   };
 
-  const calcularCustoProducao = (receita: Receita[]) => {
-    // Valores simulados dos insumos
-    const precos: { [key: string]: number } = {
-      '1': 5.50, '2': 4.20, '3': 28.00, '4': 0.60, '5': 22.00, '6': 6.50
-    };
-    
-    return receita.reduce((total, item) => {
-      const preco = precos[item.insumoId] || 0;
-      return total + (preco * item.quantidade);
-    }, 0);
+  const calcularCustoProducao = (item: ItemCatalogo) => {
+    if (typeof item.custoProducao === 'number') return item.custoProducao;
+    if (Array.isArray(item.receita) && item.receita.length > 0) {
+      const precos: { [key: string]: number } = { '1': 5.5, '2': 4.2, '3': 28, '4': 0.6, '5': 22, '6': 6.5 };
+      return item.receita.reduce((total, r) => total + (precos[r.insumoId] || 0) * r.quantidade, 0);
+    }
+    return 0;
   };
 
   const calcularMargem = (preco: number, custo: number) => {
@@ -202,8 +209,8 @@ export function Catalogo() {
       {/* Catalogo List */}
       <div className="space-y-3">
         {filteredCatalogo.map((item) => {
-          const custo = calcularCustoProducao(item.receita);
-          const margem = calcularMargem(item.preco, custo);
+          const custo = calcularCustoProducao(item);
+          const margem = item.preco > 0 ? calcularMargem(item.preco, custo) : '0.0';
           
           return (
             <Card key={item.id} className="border-none shadow-md">
@@ -216,7 +223,9 @@ export function Catalogo() {
                         {item.categoria}
                       </Badge>
                     </div>
-                    <p className="text-sm text-gray-600 mb-2">{item.descricao}</p>
+                    {item.descricao && (
+                      <p className="text-sm text-gray-600 mb-2">{item.descricao}</p>
+                    )}
                   </div>
                   <div className="flex gap-1">
                     <Button
@@ -253,7 +262,7 @@ export function Catalogo() {
                   </div>
                   <div className="bg-orange-50 p-2 rounded">
                     <p className="text-gray-600">Tempo</p>
-                    <p className="text-orange-700">{item.tempoPreparo}min</p>
+                    <p className="text-orange-700">{item.tempoPreparo ?? 0}min</p>
                   </div>
                 </div>
               </CardContent>
@@ -297,7 +306,7 @@ export function Catalogo() {
                 <div className="flex justify-between mb-1">
                   <span className="text-gray-600">Custo de Produção:</span>
                   <span className="text-gray-900">
-                    R$ {calcularCustoProducao(selectedItem.receita).toFixed(2)}
+                    R$ {calcularCustoProducao(selectedItem).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between mb-1">
@@ -307,7 +316,7 @@ export function Catalogo() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Margem de Lucro:</span>
                   <span className="text-pink-600">
-                    {calcularMargem(selectedItem.preco, calcularCustoProducao(selectedItem.receita))}%
+                    {calcularMargem(selectedItem.preco, calcularCustoProducao(selectedItem))}%
                   </span>
                 </div>
               </div>

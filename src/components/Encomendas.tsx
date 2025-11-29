@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Search, Eye, X, Calendar, Clock } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Textarea } from './ui/textarea';
+import { EncomendasAPI } from '../services/endpoints';
 
 interface ItemEncomenda {
   catalogoId: string;
@@ -35,60 +36,9 @@ export function Encomendas() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedEncomenda, setSelectedEncomenda] = useState<Encomenda | null>(null);
 
-  const [encomendas, setEncomendas] = useState<Encomenda[]>([
-    {
-      id: '#001',
-      cliente: 'Maria Silva',
-      telefone: '(11) 98765-4321',
-      dataEntrega: '2025-11-20',
-      horarioEntrega: '14:00',
-      status: 'pendente',
-      itens: [
-        { catalogoId: '1', produtoNome: 'Bolo de Chocolate', quantidade: 1, precoUnitario: 120.00 },
-      ],
-      observacoes: 'Cobertura extra de chocolate',
-      valorTotal: 120.00,
-    },
-    {
-      id: '#002',
-      cliente: 'João Santos',
-      telefone: '(11) 97654-3210',
-      dataEntrega: '2025-11-18',
-      horarioEntrega: '16:00',
-      status: 'em_producao',
-      itens: [
-        { catalogoId: '2', produtoNome: 'Torta de Morango', quantidade: 1, precoUnitario: 85.00 },
-      ],
-      observacoes: '',
-      valorTotal: 85.00,
-    },
-    {
-      id: '#003',
-      cliente: 'Ana Costa',
-      telefone: '(11) 96543-2109',
-      dataEntrega: '2025-11-16',
-      horarioEntrega: '10:00',
-      status: 'pronta',
-      itens: [
-        { catalogoId: '3', produtoNome: 'Cupcakes Variados', quantidade: 2, precoUnitario: 45.00 },
-      ],
-      observacoes: 'Sem nozes',
-      valorTotal: 90.00,
-    },
-    {
-      id: '#004',
-      cliente: 'Pedro Lima',
-      telefone: '(11) 95432-1098',
-      dataEntrega: '2025-11-15',
-      horarioEntrega: '18:00',
-      status: 'entregue',
-      itens: [
-        { catalogoId: '1', produtoNome: 'Bolo de Chocolate', quantidade: 2, precoUnitario: 120.00 },
-      ],
-      observacoes: '',
-      valorTotal: 240.00,
-    },
-  ]);
+  const [encomendas, setEncomendas] = useState<Encomenda[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     cliente: '',
@@ -97,6 +47,33 @@ export function Encomendas() {
     horarioEntrega: '',
     observacoes: '',
   });
+
+  useEffect(() => {
+    const fetchEncomendas = async () => {
+      try {
+        setLoading(true);
+        const data = await EncomendasAPI.list();
+        const mapped: Encomenda[] = (Array.isArray(data) ? data : []).map((d: any) => ({
+          id: d._id,
+          cliente: typeof d.cliente === 'object' ? (d.cliente?.nome || '') : d.cliente,
+          telefone: (d as any).telefone || '',
+          dataEntrega: (d as any).dataEntrega || (d.createdAt ? new Date(d.createdAt).toISOString().slice(0,10) : ''),
+          horarioEntrega: (d as any).horarioEntrega || '',
+          status: (d as any).status || 'pendente',
+          itens: (d.itens || []).map((i: any) => ({ catalogoId: i.produto, produtoNome: i.nome || '', quantidade: i.quantidade, precoUnitario: i.precoUnitarioSnapshot || 0 })),
+          observacoes: (d as any).observacoes || '',
+          valorTotal: d.valorTotal || 0,
+        }));
+        setEncomendas(mapped);
+      } catch (e) {
+        console.error('Falha ao carregar encomendas', e);
+        setError('Falha ao carregar encomendas');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEncomendas();
+  }, []);
 
   const filteredEncomendas = encomendas.filter((encomenda) => {
     const matchSearch = 
@@ -123,16 +100,19 @@ export function Encomendas() {
     setFormData({ cliente: '', telefone: '', dataEntrega: '', horarioEntrega: '', observacoes: '' });
   };
 
-  const handleUpdateStatus = (id: string, newStatus: Encomenda['status']) => {
-    setEncomendas(encomendas.map(encomenda =>
-      encomenda.id === id ? { ...encomenda, status: newStatus } : encomenda
-    ));
+  const handleUpdateStatus = async (id: string, newStatus: Encomenda['status']) => {
+    try {
+      await EncomendasAPI.updateStatus(id, newStatus);
+      setEncomendas((prev) => prev.map((e) => (e.id === id ? { ...e, status: newStatus } : e)));
+    } catch (e) {
+      console.error('Falha ao atualizar status', e);
+      setError('Falha ao atualizar status');
+    }
   };
 
   const handleCancelEncomenda = (id: string) => {
-    setEncomendas(encomendas.map(encomenda =>
-      encomenda.id === id ? { ...encomenda, status: 'cancelada' } : encomenda
-    ));
+    // Sem endpoint dedicado: mantém cancelamento local
+    setEncomendas((prev) => prev.map((e) => (e.id === id ? { ...e, status: 'cancelada' } : e)));
   };
 
   const getStatusBadge = (status: Encomenda['status']) => {

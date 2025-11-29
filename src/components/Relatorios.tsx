@@ -4,10 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
+import { RelatoriosAPI } from '../services/endpoints';
 
 export function Relatorios() {
   const [periodo, setPeriodo] = useState('mes_atual');
   const [tipoRelatorio, setTipoRelatorio] = useState('vendas');
+  const [apiData, setApiData] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Dados simulados de vendas por mês
   const vendasPorMes = {
@@ -66,6 +70,38 @@ export function Relatorios() {
     return labels[periodo as keyof typeof labels];
   };
 
+  const getPeriodoRange = (): { inicio: string; fim: string } => {
+    const now = new Date();
+    if (periodo === 'mes_atual') {
+      const inicio = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { inicio: inicio.toISOString().slice(0, 10), fim: now.toISOString().slice(0, 10) };
+    }
+    if (periodo === 'mes_anterior') {
+      const firstPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastPrev = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { inicio: firstPrev.toISOString().slice(0, 10), fim: lastPrev.toISOString().slice(0, 10) };
+    }
+    // ultimos_3_meses
+    const threeAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    return { inicio: threeAgo.toISOString().slice(0, 10), fim: now.toISOString().slice(0, 10) };
+  };
+
+  const gerarViaAPI = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { inicio, fim } = getPeriodoRange();
+      const data = await RelatoriosAPI.gerar(tipoRelatorio as any, inicio, fim, false);
+      setApiData(data);
+    } catch (e) {
+      console.error('Falha ao gerar relatório', e);
+      setError('Falha ao gerar relatório');
+      setApiData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="p-4 space-y-4">
       {/* Controls */}
@@ -100,8 +136,43 @@ export function Relatorios() {
             <span>Período Selecionado</span>
           </div>
           <p className="text-2xl">{getPeriodoLabel()}</p>
+          <div className="mt-3 flex gap-2">
+            <Button onClick={gerarViaAPI} className="bg-white text-pink-600 hover:bg-gray-100">
+              {loading ? 'Gerando...' : 'Gerar via API'}
+            </Button>
+            {error && <span className="text-sm text-yellow-200">{error}</span>}
+          </div>
         </CardContent>
       </Card>
+
+      {apiData && (
+        <Card className="border-none shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle>Resultados (API) — {String(apiData.tipo || tipoRelatorio)}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {apiData.resumoFinanceiro && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Receita Total</span>
+                <span className="text-gray-900">R$ {Number(apiData.resumoFinanceiro.receitaTotal || 0).toFixed(2)}</span>
+              </div>
+            )}
+            {Array.isArray(apiData.topProdutos) && apiData.topProdutos.length > 0 && (
+              <div className="pt-2 border-t">
+                <span className="text-gray-900">Top Produtos</span>
+                <div className="mt-2 space-y-1">
+                  {apiData.topProdutos.slice(0, 5).map((p: any) => (
+                    <div key={p.produtoId} className="flex justify-between">
+                      <span className="text-gray-700">{p.nome}</span>
+                      <span className="text-gray-900">{p.quantidadeVendida} un</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Vendas Report */}
       {tipoRelatorio === 'vendas' && (

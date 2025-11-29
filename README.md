@@ -47,3 +47,15 @@ npm run dev
 ```
 
 O servidor iniciará geralmente na porta: `http://localhost:5173`
+
+## 🔌 Configuração da API
+
+Defina a URL base da API via variáveis de ambiente do Vite.
+
+Crie um arquivo `.env` na raiz com:
+
+```bash
+VITE_API_URL=https://gestaodeconfeitaria.onrender.com/api
+```
+
+Se não definido, a aplicação utilizará automaticamente `https://gestaodeconfeitaria.onrender.com/api` como padrão.
