@@ -1,40 +1,62 @@
+import { useEffect, useState } from 'react';
 import { Package, BookOpen, ShoppingCart, TrendingUp, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
+import { BalancoAPI } from '../services/endpoints';
 
 export function Dashboard() {
+  const [receitaTotal, setReceitaTotal] = useState<number | null>(null);
+  const [pedidosHoje, setPedidosHoje] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchBalanco = async () => {
+      try {
+        setLoading(true);
+        const data = await BalancoAPI.get();
+        if (typeof data?.receitaTotal === 'number') setReceitaTotal(data.receitaTotal);
+        if (typeof data?.pedidosHoje === 'number') setPedidosHoje(data.pedidosHoje);
+      } catch (e) {
+        console.error('Falha ao carregar balanço', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBalanco();
+  }, []);
+
   const stats = [
     {
-      title: 'Encomendas Ativas',
-      value: '12',
+      title: 'Encomendas Hoje',
+      value: pedidosHoje !== null ? String(pedidosHoje) : '—',
       icon: ShoppingCart,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
-      change: '+3 hoje',
+      change: '',
     },
     {
       title: 'Itens no Catálogo',
-      value: '28',
+      value: '—',
       icon: BookOpen,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100',
-      change: '5 novos',
+      change: '',
     },
     {
       title: 'Insumos Cadastrados',
-      value: '45',
+      value: '—',
       icon: Package,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
-      change: '8 em falta',
+      change: '',
     },
     {
-      title: 'Vendas do Mês',
-      value: 'R$ 8.450',
+      title: 'Receita Total',
+      value: receitaTotal !== null ? `R$ ${receitaTotal.toFixed(2)}` : '—',
       icon: TrendingUp,
       color: 'text-pink-600',
       bgColor: 'bg-pink-100',
-      change: '+15%',
+      change: '',
     },
   ];
 

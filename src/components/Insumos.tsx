@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Search, Edit, Trash2, TrendingUp, TrendingDown } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -7,6 +7,7 @@ import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { InsumosAPI } from '../services/endpoints';
 
 interface Insumo {
   id: string;
@@ -24,14 +25,9 @@ export function Insumos() {
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false);
   const [selectedInsumo, setSelectedInsumo] = useState<Insumo | null>(null);
 
-  const [insumos, setInsumos] = useState<Insumo[]>([
-    { id: '1', nome: 'Farinha de Trigo', quantidade: 2, unidade: 'kg', valorUnitario: 5.50, estoqueMinimo: 5, categoria: 'Farinha' },
-    { id: '2', nome: 'Açúcar Refinado', quantidade: 3, unidade: 'kg', valorUnitario: 4.20, estoqueMinimo: 5, categoria: 'Açúcar' },
-    { id: '3', nome: 'Manteiga', quantidade: 0.5, unidade: 'kg', valorUnitario: 28.00, estoqueMinimo: 1, categoria: 'Laticínio' },
-    { id: '4', nome: 'Ovos', quantidade: 30, unidade: 'und', valorUnitario: 0.60, estoqueMinimo: 12, categoria: 'Proteína' },
-    { id: '5', nome: 'Chocolate em Pó', quantidade: 1.5, unidade: 'kg', valorUnitario: 22.00, estoqueMinimo: 1, categoria: 'Chocolate' },
-    { id: '6', nome: 'Leite Condensado', quantidade: 8, unidade: 'und', valorUnitario: 6.50, estoqueMinimo: 3, categoria: 'Laticínio' },
-  ]);
+  const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -44,41 +40,86 @@ export function Insumos() {
 
   const [adjustAmount, setAdjustAmount] = useState('');
 
+  useEffect(() => {
+    const fetchInsumos = async () => {
+      try {
+        setLoading(true);
+        const data = await InsumosAPI.list();
+        const mapped: Insumo[] = data.map((d: any) => ({
+          id: d._id,
+          nome: d.nome,
+          quantidade: d.estoque ?? 0,
+          unidade: d.unidade ?? 'und',
+          valorUnitario: 0,
+          estoqueMinimo: 0,
+          categoria: d.categoria ?? '',
+        }));
+        setInsumos(mapped);
+      } catch (e) {
+        console.error('Falha ao carregar insumos', e);
+        setError('Falha ao carregar insumos');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInsumos();
+  }, []);
+
   const filteredInsumos = insumos.filter((insumo) =>
     insumo.nome.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleCreateInsumo = () => {
-    const newInsumo: Insumo = {
-      id: Date.now().toString(),
-      nome: formData.nome,
-      quantidade: parseFloat(formData.quantidade),
-      unidade: formData.unidade,
-      valorUnitario: parseFloat(formData.valorUnitario),
-      estoqueMinimo: parseFloat(formData.estoqueMinimo),
-      categoria: formData.categoria,
-    };
-    setInsumos([...insumos, newInsumo]);
-    setDialogOpen(false);
-    setFormData({ nome: '', quantidade: '', unidade: 'kg', valorUnitario: '', estoqueMinimo: '', categoria: '' });
-  };
-
-  const handleAdjustStock = (type: 'increase' | 'decrease') => {
-    if (selectedInsumo && adjustAmount) {
-      const amount = parseFloat(adjustAmount);
-      setInsumos(insumos.map(insumo => 
-        insumo.id === selectedInsumo.id
-          ? { ...insumo, quantidade: type === 'increase' ? insumo.quantidade + amount : insumo.quantidade - amount }
-          : insumo
-      ));
-      setAdjustDialogOpen(false);
-      setAdjustAmount('');
-      setSelectedInsumo(null);
+  const handleCreateInsumo = async () => {
+    try {
+      const created = await InsumosAPI.create({
+        nome: formData.nome,
+        unidade: formData.unidade,
+        estoqueInicial: formData.quantidade ? parseFloat(formData.quantidade) : undefined,
+        categoria: formData.categoria || undefined,
+      });
+      const newInsumo: Insumo = {
+        id: created._id,
+        nome: created.nome,
+        quantidade: (created as any).estoque ?? (formData.quantidade ? parseFloat(formData.quantidade) : 0),
+        unidade: created.unidade,
+        valorUnitario: formData.valorUnitario ? parseFloat(formData.valorUnitario) : 0,
+        estoqueMinimo: formData.estoqueMinimo ? parseFloat(formData.estoqueMinimo) : 0,
+        categoria: created.categoria ?? formData.categoria,
+      };
+      setInsumos((prev) => [newInsumo, ...prev]);
+      setDialogOpen(false);
+      setFormData({ nome: '', quantidade: '', unidade: 'kg', valorUnitario: '', estoqueMinimo: '', categoria: '' });
+    } catch (e) {
+      console.error('Falha ao criar insumo', e);
+      setError('Falha ao criar insumo');
     }
   };
 
-  const handleDeleteInsumo = (id: string) => {
-    setInsumos(insumos.filter(insumo => insumo.id !== id));
+  const handleAdjustStock = async (type: 'increase' | 'decrease') => {
+    if (selectedInsumo && adjustAmount) {
+      try {
+        const amount = parseFloat(adjustAmount) * (type === 'decrease' ? -1 : 1);
+        const updated = await InsumosAPI.patchEstoque(selectedInsumo.id, amount);
+        setInsumos((prev) => prev.map((i) => (i.id === selectedInsumo.id ? { ...i, quantidade: updated.estoque } : i)));
+      } catch (e) {
+        console.error('Falha ao ajustar estoque', e);
+        setError('Falha ao ajustar estoque');
+      } finally {
+        setAdjustDialogOpen(false);
+        setAdjustAmount('');
+        setSelectedInsumo(null);
+      }
+    }
+  };
+
+  const handleDeleteInsumo = async (id: string) => {
+    try {
+      await InsumosAPI.remove(id);
+      setInsumos((prev) => prev.filter((i) => i.id !== id));
+    } catch (e) {
+      console.error('Falha ao remover insumo', e);
+      setError('Falha ao remover insumo');
+    }
   };
 
   const getStockStatus = (insumo: Insumo) => {
