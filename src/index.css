@@ -2116,9 +2116,9 @@
 }
 
 .dark {
-  --background: oklch(.145 0 0);
+  --background: oklch(0% 0 0);
   --foreground: oklch(.985 0 0);
-  --card: oklch(.145 0 0);
+  --card: oklch(15.434% 0.00002 271.152);
   --card-foreground: oklch(.985 0 0);
   --popover: oklch(.145 0 0);
   --popover-foreground: oklch(.985 0 0);
@@ -2150,6 +2150,50 @@
   --sidebar-accent-foreground: oklch(.985 0 0);
   --sidebar-border: oklch(.269 0 0);
   --sidebar-ring: oklch(.439 0 0);
+}
+
+:root {
+  /* Adicionando variáveis semânticas que o Shadcn padrão não traz */
+  --success: #16a34a; /* Verde Padrão */
+  --success-foreground: #ffffff;
+  
+  --warning: #ca8a04; /* Amarelo Escuro */
+  --warning-foreground: #ffffff;
+}
+
+.dark {
+  /* Cores para o modo escuro padrão */
+  --success: #22c55e;
+  --warning: #facc15;
+}
+
+/* --- MODO DALTÔNICO (Deuteranomalia) --- */
+/* Quando o atributo data-daltonico="true" estiver no HTML */
+[data-daltonico="true"] {
+  
+  /* 1. Substitui VERDE (Sucesso) por AZUL TURQUESA (Teal) */
+  /* Daltônicos confundem verde com vermelho/marrom. Azul é seguro. */
+  --success: #0891b2; 
+  --success-foreground: #ffffff;
+
+  /* 2. Substitui VERMELHO (Destructive/Erro) por MAGENTA/ROXO */
+  /* Magenta é muito distinto de amarelo/marrom/verde */
+  --destructive: #c026d3;
+  --destructive-foreground: #ffffff;
+
+  /* 3. Substitui AMARELO (Aviso) por LARANJA QUEIMADO */
+  --warning: #ea580c;
+  --warning-foreground: #ffffff;
+
+  /* 4. Ajuste de Primary para um Azul mais vibrante/acessível */
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  
+  /* Ajuste para modo escuro daltônico */
+  &.dark {
+    --primary: #3b82f6;
+    --primary-foreground: #ffffff;
+  }
 }
 
 html {

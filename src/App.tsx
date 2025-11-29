@@ -1,3 +1,4 @@
+import AccessibilityMenu from "./components/AccessibilityMenu"; 
 import { useState } from 'react';
 import { Home, Package, BookOpen, ShoppingCart, BarChart3 } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
@@ -20,16 +21,24 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
+
+    <div className="min-h-screen bg-page text-foreground transition-colors duration-300">
+      
+
+
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+      <header className="bg-card border-b border-border sticky top-0 z-40 shadow-sm">
         <div className="px-4 py-4">
-          <h1 className="text-center text-pink-600">🧁 Gestão de Confeitaria</h1>
+          
+          <h1 className="text-center font-bold text-xl text-brand">
+            🧁 Gestão de Confeitaria
+          </h1>
+          <AccessibilityMenu />
         </div>
       </header>
 
       {/* Content */}
-      <main className="pb-20">
+      <main className="pb-24 pt-4 px-4">
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'insumos' && <Insumos />}
         {activeTab === 'catalogo' && <Catalogo />}
@@ -38,7 +47,7 @@ export default function App() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50">
         <div className="grid grid-cols-5 h-16">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -49,15 +58,15 @@ export default function App() {
                 onClick={() => setActiveTab(tab.id as TabType)}
                 className={`flex flex-col items-center justify-center gap-1 transition-colors ${
                   isActive
-                    ? 'text-pink-600'
-                    : 'text-gray-400 hover:text-gray-600'
+                    ? 'text-brand font-bold' 
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <Icon className="w-5 h-5" />
-                <span className="text-xs">{tab.label}</span>
+                <Icon className={`w-5 h-5 ${isActive ? 'fill-current opacity-20' : ''}`} />
+                <span className="text-[10px]">{tab.label}</span>
               </button>
             );
-          })}
+          })}   
         </div>
       </nav>
     </div>
